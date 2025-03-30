@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>化学知识翻牌配对游戏</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: #f0f8ff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+            max-width: 800px;
+        }
+        .card {
+            width: 150px;
+            height: 150px;
+            perspective: 1000px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: scale(1.05);
+        }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            box-sizing: border-box;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+        .card-front {
+            background: linear-gradient(135deg, #3498db, #2c3e50);
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .card-back {
+            background: linear-gradient(135deg, #f1c40f, #e67e22);
+            color: #2c3e50;
+            transform: rotateY(180deg);
+            font-size: 16px;
+        }
+        .matched {
+            opacity: 0.7;
+            cursor: default;
+            transform: scale(0.95);
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+            background-color: rgba(255,255,255,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .timer, .moves {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+        }
+        button {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .win-message {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e74c3c;
+            margin-top: 20px;
+            display: none;
+            text-align: center;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .music-panel {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background-color: rgba(255,255,255,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .music-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        input[type="range"] {
+            width: 100px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎓 化学知识翻牌配对游戏 🧪</h1>
+    
+    <div class="controls">
+        <div class="timer">⏱️ 时间: <span id="time">0</span>秒</div>
+        <button id="restart">🔄 重新开始</button>
+        <div class="moves">🔁 尝试次数: <span id="moves">0</span></div>
+    </div>
+    
+    <div class="game-container" id="game-board"></div>
+    
+    <div class="win-message" id="win-message">
+        🎉 恭喜你完成了所有配对！ 🎉<br>
+        <span id="final-score"></span>
+    </div>
+
+    <div class="music-panel">
+        <div class="music-control">
+            <button id="music-toggle">⏸️ 暂停音乐</button>
+        </div>
+        <div class="volume-control">
+            <span>🔊 音量:</span>
+            <input type="range" id="volume" min="0" max="1" step="0.1" value="0.5">
+        </div>
+    </div>
+
+    <!-- 音效预加载 -->
+    <audio id="flipSound" src="https://www.soundjay.com/buttons/sounds/button-09.mp3" preload="auto"></audio>
+    <audio id="matchSound" src="https://www.soundjay.com/buttons/sounds/button-21.mp3" preload="auto"></audio>
+    <audio id="winSound" src="https://www.soundjay.com/buttons/sounds/button-20.mp3" preload="auto"></audio>
+    <audio id="mismatchSound" src="https://www.soundjay.com/buttons/sounds/button-10.mp3" preload="auto"></audio>
+    <audio id="startSound" src="https://www.soundjay.com/buttons/sounds/button-04.mp3" preload="auto"></audio>
+    <!-- 欢快的背景音乐 - 钢琴曲 -->
+    <audio id="backgroundMusic" loop preload="auto">
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        // 游戏数据
+        const cardsData = [
+            { term: "无机化学", definition: "以元素周期表为主线，研究不同族元素单质及其化合物的性质" },
+            { term: "有机化学", definition: "以官能团为主线，研究碳氢化合物的命名、制备、结构和性质" },
+            { term: "分析化学", definition: "研究物质的组成和结构的分析方法，包括化学分析和仪器分析" },
+            { term: "物理化学", definition: "研究化学变化的平衡规律、速率规律及物质的微观结构" }
+        ];
+
+        // 游戏状态
+        let gameState = {
+            cards: [],
+            flippedCards: [],
+            matchedPairs: 0,
+            moves: 0,
+            timer: null,
+            seconds: 0,
+            gameStarted: false,
+            musicPlaying: true
+        };
+
+        // DOM元素
+        const gameBoard = document.getElementById('game-board');
+        const timeDisplay = document.getElementById('time');
+        const movesDisplay = document.getElementById('moves');
+        const restartButton = document.getElementById('restart');
+        const winMessage = document.getElementById('win-message');
+        const finalScore = document.getElementById('final-score');
+        const musicToggle = document.getElementById('music-toggle');
+        const volumeControl = document.getElementById('volume');
+        
+        // 音效元素
+        const flipSound = document.getElementById('flipSound');
+        const matchSound = document.getElementById('matchSound');
+        const winSound = document.getElementById('winSound');
+        const mismatchSound = document.getElementById('mismatchSound');
+        const startSound = document.getElementById('startSound');
+        const backgroundMusic = document.getElementById('backgroundMusic');
+
+        // 初始化游戏
+        function initGame() {
+            // 重置游戏状态
+            gameState = {
+                cards: [],
+                flippedCards: [],
+                matchedPairs: 0,
+                moves: 0,
+                timer: null,
+                seconds: 0,
+                gameStarted: false,
+                musicPlaying: gameState.musicPlaying
+            };
+
+            // 更新显示
+            timeDisplay.textContent = '0';
+            movesDisplay.textContent = '0';
+            winMessage.style.display = 'none';
+
+            // 清空游戏板
+            gameBoard.innerHTML = '';
+
+            // 创建卡片组
+            const allCards = [];
+            cardsData.forEach(item => {
+                allCards.push({ type: 'term', content: item.term, match: item.definition });
+                allCards.push({ type: 'definition', content: item.definition, match: item.term });
+            });
+
+            // 洗牌
+            const shuffledCards = shuffleArray(allCards);
+
+            // 创建卡片元素
+            shuffledCards.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = 'card';
+                cardElement.dataset.index = index;
+                cardElement.dataset.content = card.content;
+                cardElement.dataset.match = card.match;
+                cardElement.dataset.type = card.type;
+
+                cardElement.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front">化学知识</div>
+                        <div class="card-back">${card.content}</div>
+                    </div>
+                `;
+
+                cardElement.addEventListener('click', flipCard);
+                gameBoard.appendChild(cardElement);
+                gameState.cards.push(cardElement);
+            });
+
+            // 设置背景音乐
+            updateBackgroundMusic();
+        }
+
+        // 洗牌函数
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        // 播放音效
+        function playSound(sound) {
+            sound.currentTime = 0;
+            sound.volume = volumeControl.value;
+            sound.play().catch(e => console.log("音效播放失败:", e));
+        }
+
+        // 更新背景音乐状态
+        function updateBackgroundMusic() {
+            backgroundMusic.volume = volumeControl.value * 0.6; // 背景音乐音量是音效的60%
+            
+            if (gameState.musicPlaying) {
+                musicToggle.innerHTML = "⏸️ 暂停音乐";
+                backgroundMusic.play().catch(e => console.log("背景音乐播放失败:", e));
+            } else {
+                musicToggle.innerHTML = "▶️ 播放音乐";
+                backgroundMusic.pause();
+            }
+        }
+
+        // 翻牌函数
+        function flipCard() {
+            // 如果游戏还没开始，开始计时
+            if (!gameState.gameStarted) {
+                startTimer();
+                gameState.gameStarted = true;
+                playSound(startSound);
+            }
+
+            // 如果已经翻了两张牌或是已匹配的牌，则返回
+            if (gameState.flippedCards.length === 2 || this.classList.contains('flipped') || this.classList.contains('matched')) {
+                return;
+            }
+
+            // 播放翻牌音效
+            playSound(flipSound);
+
+            // 翻牌
+            this.classList.add('flipped');
+            gameState.flippedCards.push(this);
+
+            // 如果翻了两张牌，检查是否匹配
+            if (gameState.flippedCards.length === 2) {
+                gameState.moves++;
+                movesDisplay.textContent = gameState.moves;
+                checkForMatch();
+            }
+        }
+
+        // 检查匹配
+        function checkForMatch() {
+            const [card1, card2] = gameState.flippedCards;
+
+            // 检查内容是否匹配
+            if (card1.dataset.content === card2.dataset.match || card2.dataset.content === card1.dataset.match) {
+                // 匹配成功
+                setTimeout(() => {
+                    card1.classList.add('matched');
+                    card2.classList.add('matched');
+                    gameState.flippedCards = [];
+                    gameState.matchedPairs++;
+
+                    // 播放匹配音效
+                    playSound(matchSound);
+
+                    // 检查游戏是否结束
+                    if (gameState.matchedPairs === cardsData.length) {
+                        endGame();
+                    }
+                }, 500);
+            } else {
+                // 不匹配，翻回去
+                setTimeout(() => {
+                    card1.classList.remove('flipped');
+                    card2.classList.remove('flipped');
+                    gameState.flippedCards = [];
+                    
+                    // 播放不匹配音效
+                    playSound(mismatchSound);
+                }, 1000);
+            }
+        }
+
+        // 开始计时
+        function startTimer() {
+            gameState.timer = setInterval(() => {
+                gameState.seconds++;
+                timeDisplay.textContent = gameState.seconds;
+            }, 1000);
+        }
+
+        // 结束游戏
+        function endGame() {
+            clearInterval(gameState.timer);
+            
+            // 显示最终成绩
+            finalScore.textContent = `用时: ${gameState.seconds}秒 | 尝试次数: ${gameState.moves}次`;
+            winMessage.style.display = 'block';
+            
+            // 播放胜利音效
+            playSound(winSound);
+            
+            // 短暂提高背景音乐音量庆祝
+            const originalVolume = backgroundMusic.volume;
+            backgroundMusic.volume = Math.min(originalVolume * 1.5, 1);
+            setTimeout(() => {
+                backgroundMusic.volume = originalVolume;
+            }, 3000);
+        }
+
+        // 切换背景音乐状态
+        function toggleMusic() {
+            gameState.musicPlaying = !gameState.musicPlaying;
+            updateBackgroundMusic();
+        }
+
+        // 事件监听
+        restartButton.addEventListener('click', initGame);
+        musicToggle.addEventListener('click', toggleMusic);
+        volumeControl.addEventListener('input', updateBackgroundMusic);
+
+        // 点击页面后允许音频播放（解决浏览器自动播放限制）
+        document.body.addEventListener('click', function() {
+            updateBackgroundMusic();
+            // 移除事件监听，避免重复触发
+            document.body.removeEventListener('click', arguments.callee);
+        }, { once: true });
+
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>
